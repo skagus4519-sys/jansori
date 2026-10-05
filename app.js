@@ -458,7 +458,13 @@ navigator.serviceWorker?.addEventListener('message', (e) => {
 });
 
 // ---------- 시작 ----------
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
+  // 새 버전 서비스워커가 붙으면 한 번 새로고침해서 바로 새 화면으로
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+}
 if (params.get('r')) {
   $app.innerHTML = `<div class="intro">${mascot('chill')}<p>리포트 불러오는 중…</p></div>`;
   fetch(`${API}/api/report?share=${encodeURIComponent(params.get('r'))}`).then((r) => r.ok ? r.json() : Promise.reject())
