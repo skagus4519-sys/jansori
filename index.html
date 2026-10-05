@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>잔소리 룸메</title>
+<meta name="description" content="정해진 시간에 먼저 말 걸고, 안 하면 계속 조르는 자취생용 잔소리 룸메">
+<meta name="theme-color" content="#fff6ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1714" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="잔소리룸메">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app"></main>
+<nav id="tabs" hidden>
+  <button data-tab="today"><span>🏠</span>오늘</button>
+  <button data-tab="report"><span>📊</span>리포트</button>
+  <button data-tab="settings"><span>⚙️</span>설정</button>
+</nav>
+<div id="toast" role="status"></div>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
