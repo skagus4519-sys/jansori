@@ -26,8 +26,8 @@ function nagText(task, n, kind) {
   return [
     `${task.tiny}. 딱 이것만 하자`,
     `아직이지? ${task.tiny}. 2분이면 끝나`,
-    `진짜 안 할 거야? 안 할 거면 패스 이유라도 적어 😑`,
-    `마지막으로 말한다. 했으면 [했음], 안 할 거면 [패스]. 무시하면 리포트에 남아 📝`,
+    `방 꼴 좀 봐. 안 할 거면 패스 이유라도 적어 😑`,
+    `마지막으로 말한다. 계속 무시하면 나 진짜 짐 싼다 🧳`,
   ][Math.min(n, 3)];
 }
 
@@ -193,7 +193,17 @@ async function api(req, env) {
   const { uid, u } = a;
 
   if (p === '/api/state') {
-    return json({ tasks: u.tasks, share: u.share, dead: !!u.dead, now, log: await getJ(env, `log:${uid}:${now.date}`, {}), nag: await getJ(env, `nag:${uid}:${now.date}`, {}) });
+    // 방 상태(기분·어지러움) 계산용으로 지난 6일 기록도 함께
+    const hist = await Promise.all([...Array(6)].map(async (_, i) => {
+      const date = shiftDate(now.date, -(i + 1));
+      return { date, log: await getJ(env, `log:${uid}:${date}`, {}), nag: await getJ(env, `nag:${uid}:${date}`, {}) };
+    }));
+    const log = await getJ(env, `log:${uid}:${now.date}`, {});
+    if (u.pts === undefined) {
+      u.pts = [log, ...hist.map((h) => h.log)].reduce((n, l) => n + Object.values(l).filter((e) => e.st === 'done').length, 0);
+      await putJ(env, `u:${uid}`, u);
+    }
+    return json({ tasks: u.tasks, share: u.share, dead: !!u.dead, now, log, nag: await getJ(env, `nag:${uid}:${now.date}`, {}), hist, pts: u.pts, since: u.created });
   }
   if (p === '/api/report') return json(await weekData(env, uid, u, now.date));
 
@@ -225,7 +235,10 @@ async function api(req, env) {
     } else if (act === 'undo') delete log[task];
     else return json({ error: 'bad act' }, 400);
     await putJ(env, key, log, LOG_TTL);
-    return json({ ok: true, log });
+    // 누적 완료 수 = 방 꾸미기 아이템 해금 점수
+    const delta = (log[task]?.st === 'done' ? 1 : 0) - (prev.st === 'done' ? 1 : 0);
+    if (delta) { u.pts = Math.max(0, (u.pts || 0) + delta); await putJ(env, `u:${uid}`, u); }
+    return json({ ok: true, log, pts: u.pts || 0 });
   }
   if (p === '/api/test' && req.method === 'POST') {
     const vapid = { pub: env.VAPID_PUBLIC, jwk: JSON.parse(env.VAPID_PRIVATE_JWK), subject: env.VAPID_SUBJECT };

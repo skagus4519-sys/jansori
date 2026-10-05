@@ -31,6 +31,8 @@ let tab = params.get('tab') || 'today';
 let focusTask = params.get('task');
 let passOpen = null;
 let editTasks = null;
+let say = null;
+let holdT = null;
 
 // ---------- 유틸 ----------
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -57,8 +59,9 @@ async function call(path, body) {
 }
 
 // ---------- 룸메 캐릭터 ----------
-function mascot(mood = 'chill') {
+function mascotInner(mood = 'chill') {
   const eyes = {
+    meh: '<path d="M32 52h12M56 52h12" stroke="#3a2418" stroke-width="3" stroke-linecap="round"/><circle cx="38" cy="55.5" r="3" fill="#3a2418"/><circle cx="62" cy="55.5" r="3" fill="#3a2418"/>',
     happy: '<path d="M33 54q5-6 10 0M57 54q5-6 10 0" stroke="#3a2418" stroke-width="3.2" fill="none" stroke-linecap="round"/>',
     sleep: '<path d="M33 55h10M57 55h10" stroke="#3a2418" stroke-width="3.2" stroke-linecap="round"/>',
     angry: '<path d="M31 46l11 4M69 46l-11 4" stroke="#3a2418" stroke-width="3" stroke-linecap="round"/><circle cx="38" cy="55" r="3.6" fill="#3a2418"/><circle cx="62" cy="55" r="3.6" fill="#3a2418"/>',
@@ -67,19 +70,20 @@ function mascot(mood = 'chill') {
     happy: '<path d="M43 64q7 8 14 0" stroke="#3a2418" stroke-width="3" fill="#ff8e7a" stroke-linecap="round"/>',
     nag: '<ellipse cx="50" cy="66" rx="4.5" ry="5.5" fill="#3a2418"/>',
     angry: '<path d="M43 68q7-6 14 0" stroke="#3a2418" stroke-width="3" fill="none" stroke-linecap="round"/>',
+    meh: '<path d="M44 66h12" stroke="#3a2418" stroke-width="3" stroke-linecap="round"/>',
     sleep: '<path d="M46 66q4 3 8 0" stroke="#3a2418" stroke-width="2.6" fill="none" stroke-linecap="round"/>',
   }[mood] || '<path d="M45 65q5 4 10 0" stroke="#3a2418" stroke-width="3" fill="none" stroke-linecap="round"/>';
   const extra = mood === 'angry' ? '<path d="M80 22l4-8M86 28l8-3M76 18l-1-8" stroke="#e0483c" stroke-width="3" stroke-linecap="round"/>'
     : mood === 'sleep' ? '<text x="76" y="26" font-size="14" font-weight="700" fill="#a8988c">z</text><text x="86" y="16" font-size="10" font-weight="700" fill="#a8988c">z</text>'
     : mood === 'happy' ? '<text x="80" y="26" font-size="16">✨</text>' : '';
-  return `<svg viewBox="0 0 100 100" aria-hidden="true" class="${mood === 'nag' || mood === 'angry' ? 'wiggle' : ''}">
-    <path d="M50 22c-2-8 2-14 9-15-1 7-4 12-9 15z" fill="#6cc08a"/><path d="M50 24c-3-6-9-8-14-6 3 5 8 7 14 6z" fill="#4fae74"/>
+  return `<path d="M50 22c-2-8 2-14 9-15-1 7-4 12-9 15z" fill="#6cc08a"/><path d="M50 24c-3-6-9-8-14-6 3 5 8 7 14 6z" fill="#4fae74"/>
     <ellipse cx="50" cy="90" rx="30" ry="5" fill="#000" opacity=".07"/>
     <path class="blob-body" d="M50 22c22 0 38 16 38 38 0 18-14 30-38 30S12 78 12 60c0-22 16-38 38-38z"/>
     <path class="blob-shade" d="M20 72c6 10 17 16 30 16 14 0 25-5 31-14-8 6-18 9-31 9-12 0-22-4-30-11z" opacity=".55"/>
     <circle cx="28" cy="63" r="5" fill="#ff8e7a" opacity=".55"/><circle cx="72" cy="63" r="5" fill="#ff8e7a" opacity=".55"/>
-    ${eyes}${mouth}${extra}</svg>`;
+    ${eyes}${mouth}${extra}`;
 }
+const mascot = (mood = 'chill') => `<svg viewBox="0 0 100 100" aria-hidden="true" class="${mood === 'nag' || mood === 'angry' ? 'wiggle' : ''}">${mascotInner(mood)}</svg>`;
 
 // ---------- 오늘 ----------
 function statusOf(t) {
@@ -124,7 +128,7 @@ function taskCard(t) {
     bottom = `<form class="passbox" data-pass="${t.id}"><input name="r" placeholder="왜 안 하는지 솔직하게" maxlength="100" autocomplete="off" enterkeyhint="done"><button>패스</button></form>`;
   } else {
     bottom = `<div class="acts">
-      <button class="do" data-act="done" data-id="${t.id}">했음 ✓</button>
+      <button class="do" data-hold="${t.id}"><i></i><span>꾹 눌러서 했음</span></button>
       ${s.k === 'later' ? '' : `<button data-act="snooze" data-id="${t.id}">10분 뒤</button>`}
       <button data-act="pass" data-id="${t.id}">패스</button></div>`;
   }
@@ -137,10 +141,19 @@ function taskCard(t) {
 
 function renderToday() {
   const list = todaysTasks();
-  const h = heroToday(list);
+  const room = computeRoom(state);
+  let h = heroToday(list);
+  if (room.gone) h = { msg: '룸메가 집을 나갔다…', sub: '쪽지: "친구네 간다. 방 치우면 돌아올게"' };
+  else if (room.face === 'angry' && h.mood !== 'happy') h = { msg: h.msg, sub: '방 상태 보면 알지? 나 지금 화났어' };
+  if (say && say.until > Date.now()) h = { msg: say.msg, sub: say.sub || '' };
   const dead = state.dead || (typeof Notification !== 'undefined' && Notification.permission !== 'granted');
+  const messList = Object.entries(room.mess).filter(([, v]) => v > 0);
   $app.innerHTML = `
-    <div class="hero">${mascot(h.mood)}<div class="bubble">${esc(h.msg)}<small>${esc(h.sub)}</small></div></div>
+    <div class="room-card">${roomSVG(room)}
+      <div class="moodbar"><span>룸메 기분 <b>${room.moodName}</b></span><div class="bar"><i style="width:${room.mood}%;background:${room.mood >= 60 ? 'var(--ok)' : room.mood >= 40 ? 'var(--pass)' : 'var(--bad)'}"></i></div><span>${room.mood}</span></div>
+    </div>
+    <div class="bubble up">${esc(h.msg)}<small>${esc(h.sub)}</small></div>
+    <div class="roominfo">${messList.length ? `🧹 어질러진 곳 ${messList.length}군데 (그림을 눌러봐)` : '✨ 방이 깨끗해'} · ${room.next ? `다음 ${room.next.emoji} ${room.next.name}까지 ${room.next.pts - room.pts}개` : '아이템 전부 모음 🏆'}</div>
     ${dead ? '<button class="big-btn" data-act="resub" style="margin:0 0 14px">🔕 알림이 꺼져 있어. 다시 켜기</button>' : ''}
     ${list.map(taskCard).join('') || '<div class="empty">오늘 예정된 일이 없어요</div>'}`;
   const pending = list.filter((t) => ['due', 'ignored'].includes(statusOf(t).k)).length;
@@ -156,11 +169,20 @@ function renderToday() {
 async function act(id, a, reason) {
   try {
     const r = await call('/api/act', { task: id, act: a, reason });
+    const before = state.pts || 0;
     state.log = r.log;
+    state.pts = r.pts;
     passOpen = null;
     report = null;
-    toast({ done: '좋아, 잘했어 👏', snooze: '10분 뒤에 또 부른다 ⏰', pass: '알았어. 리포트엔 남겨둘게', undo: '되돌렸어' }[a]);
+    const t = state.tasks.find((x) => x.id === id);
+    const got = ITEMS.find((it) => before < it.pts && r.pts >= it.pts);
+    if (got) { say = { msg: `🎉 새 아이템! ${got.emoji} ${got.name}`, sub: '방에 놔뒀어. 한번 봐봐', until: Date.now() + 8000 }; navigator.vibrate?.([40, 60, 40]); }
+    else if (a === 'done') say = { msg: pick(LINES.done[kindOf(t)].concat(LINES.done.misc)), sub: `누적 완료 ${r.pts}개`, until: Date.now() + 6000 };
+    else if (a === 'pass') say = { msg: pick(LINES.pass), until: Date.now() + 6000 };
+    else if (a === 'snooze') say = { msg: pick(LINES.snooze), until: Date.now() + 6000 };
+    else say = null;
     render();
+    if (a !== 'undo') scrollTo({ top: 0, behavior: 'smooth' });
   } catch (e) { toast(e.message); }
 }
 
@@ -207,6 +229,7 @@ function renderReport(w, shared) {
     </table>
     <div class="legend"><span>✓ 했음</span><span>P 패스</span><span>✕ 무시</span></div></div>
     ${worst.length ? `<h2>제일 많이 미룬 일</h2><div class="list">${worst.map((x) => `<div>${esc(x.t.emoji)} <b>${esc(x.t.name)}</b> <small>· 미룸 ${x.sn} · 패스 ${x.pass} · 무시 ${x.bad}</small></div>`).join('')}</div>` : ''}
+    ${!shared && state ? `<h2>방 꾸미기 컬렉션 (누적 완료 ${state.pts || 0}개)</h2><div class="items">${ITEMS.map((it) => `<div class="${(state.pts || 0) >= it.pts ? 'on' : ''}"><b>${(state.pts || 0) >= it.pts ? it.emoji : '🔒'}</b>${it.name}<small>${it.pts}개</small></div>`).join('')}</div>` : ''}
     ${!shared && reasons.length ? `<h2>패스할 때 댄 핑계</h2><div class="list">${reasons.map((x) => `<div>${esc(x.r)}<br><small>${md(x.d)} ${esc(x.t.name)}</small></div>`).join('')}</div>` : ''}
     ${shared ? '<p class="help" style="text-align:center;margin-top:24px">잔소리 룸메로 기록된 리포트예요</p>'
       : `<button class="big-btn" data-act="share">👀 감시자에게 리포트 보내기</button><p class="help">친구나 가족한테 링크를 보내면 이 주간 기록을 볼 수 있어요(핑계는 안 보여요). 누가 본다고 생각하면 덜 미루게 돼요.</p>`}`;
@@ -309,6 +332,22 @@ $tabs.addEventListener('click', (e) => {
   render();
 });
 
+$app.addEventListener('pointerdown', (e) => {
+  const b = e.target.closest('button[data-hold]');
+  if (!b) return;
+  b.classList.add('holding');
+  holdT = setTimeout(() => { holdT = null; b.classList.remove('holding'); navigator.vibrate?.(30); act(b.dataset.hold, 'done'); }, 900);
+});
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) {
+  $app.addEventListener(ev, (e) => {
+    if (!holdT || (ev === 'pointerleave' && !e.target.closest?.('button[data-hold]'))) return;
+    clearTimeout(holdT); holdT = null;
+    $app.querySelectorAll('.holding').forEach((x) => x.classList.remove('holding'));
+    if (ev === 'pointerup') toast(pick(LINES.hold));
+  }, true);
+}
+$app.addEventListener('contextmenu', (e) => { if (e.target.closest('button[data-hold]')) e.preventDefault(); });
+
 $app.addEventListener('submit', (e) => {
   e.preventDefault();
   const f = e.target.closest('[data-pass]');
@@ -324,6 +363,18 @@ $app.addEventListener('input', (e) => {
 });
 
 $app.addEventListener('click', async (e) => {
+  const g = e.target.closest('[data-roomie],[data-mess]');
+  if (g && state) {
+    const room = computeRoom(state);
+    if (g.dataset.roomie) say = room.gone ? { msg: '(쪽지) 친구네 간다. 방 치우면 돌아올게', sub: '할 일을 하면 기분이 올라가요', until: Date.now() + 6000 } : { msg: pick(LINES.tap[room.face]), sub: `기분 ${room.mood}/100`, until: Date.now() + 5000 };
+    else {
+      const k = g.dataset.mess;
+      const t = state.tasks.find((x) => kindOf(x) === k);
+      say = { msg: `저 ${MESS_LABEL[k]} 보여?`, sub: t ? `${t.name} 하면 치워져` : '', until: Date.now() + 5000 };
+      if (t) focusTask = t.id;
+    }
+    return render();
+  }
   const b = e.target.closest('button');
   if (!b) return;
   const box = b.closest('.edit');

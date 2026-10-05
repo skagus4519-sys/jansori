@@ -164,3 +164,37 @@ nav#tabs[hidden] { display: none; }
 .edit input.emoji { width: 52px; flex: none; }
 .edit input.time { width: 128px; flex: none; }
 .edit input[data-f=name] { flex: 1; }
+
+/* 룸메 방 */
+.room-card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; box-shadow: var(--shadow); margin-top: 6px; }
+svg.room { display: block; width: 100%; height: auto; }
+svg.room [data-roomie], svg.room [data-mess] { cursor: pointer; }
+.bob { animation: bob 3s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-4px); } }
+svg.room .wiggle { transform-box: fill-box; transform-origin: 50% 90%; }
+.fly { animation: fly 1.6s ease-in-out infinite; animation-delay: var(--d); }
+@keyframes fly { 25% { transform: translate(4px, -5px); } 50% { transform: translate(-3px, -2px); } 75% { transform: translate(3px, 4px); } }
+.stink { animation: stink 2.4s ease-in-out infinite; }
+@keyframes stink { 50% { opacity: .25; transform: translateY(-3px); } }
+.glow { animation: glow 2s ease-in-out infinite alternate; }
+@keyframes glow { to { opacity: .45; } }
+.moodbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; font-size: 13px; color: var(--sub); border-top: 1px solid var(--line); }
+.moodbar b { color: var(--ink); }
+.moodbar .bar { flex: 1; height: 8px; border-radius: 99px; background: var(--bg); overflow: hidden; }
+.moodbar .bar i { display: block; height: 100%; border-radius: 99px; transition: width .6s; }
+.bubble.up { margin: 14px 0 6px; border-radius: 18px; }
+.bubble.up::before { content: ""; position: absolute; top: -8px; left: 50%; margin-left: -8px; width: 16px; height: 16px; background: var(--card); border-left: 1px solid var(--line); border-top: 1px solid var(--line); transform: rotate(45deg); }
+.roominfo { font-size: 13px; color: var(--sub); margin: 0 4px 16px; }
+
+/* 꾹 눌러서 했음 */
+.acts .do { position: relative; overflow: hidden; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+.acts .do i { position: absolute; inset: 0; width: 0; background: rgba(255, 255, 255, .35); }
+.acts .do.holding i { width: 100%; transition: width .9s linear; }
+.acts .do span { position: relative; }
+
+/* 컬렉션 */
+.items { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.items div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 4px; text-align: center; font-size: 12px; opacity: .55; }
+.items div.on { opacity: 1; border-color: var(--accent); }
+.items b { display: block; font-size: 24px; }
+.items small { display: block; color: var(--sub); }
