@@ -1,5 +1,5 @@
 // 잔소리 룸메 서비스워커 — 푸시 수신 + 앱 셸 캐시
-const CACHE = 'jansori-v1';
+const CACHE = 'jansori-v2';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))); self.skipWaiting(); });
