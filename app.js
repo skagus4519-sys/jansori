@@ -149,7 +149,7 @@ function renderToday() {
   const dead = state.dead || (typeof Notification !== 'undefined' && Notification.permission !== 'granted');
   const messList = Object.entries(room.mess).filter(([, v]) => v > 0);
   $app.innerHTML = `
-    <div class="room-card">${roomSVG(room)}
+    <div class="room-card"><button class="room-help" data-act="guide" aria-label="사용법">?</button>${roomSVG(room)}
       <div class="moodbar"><span>룸메 기분 <b>${room.moodName}</b></span><div class="bar"><i style="width:${room.mood}%;background:${room.mood >= 60 ? 'var(--ok)' : room.mood >= 40 ? 'var(--pass)' : 'var(--bad)'}"></i></div><span>${room.mood}</span></div>
     </div>
     <div class="bubble up">${esc(h.msg)}<small>${esc(h.sub)}</small></div>
@@ -240,7 +240,8 @@ function renderSettings() {
   editTasks ??= structuredClone(state.tasks);
   const perm = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission;
   $app.innerHTML = `
-    <h2 style="margin-top:8px">알림</h2>
+    <button class="big-btn ghost" data-act="guide" style="margin-top:8px">📖 사용법 다시 보기</button>
+    <h2>알림</h2>
     <div class="list"><div>${state.dead || perm !== 'granted' ? '🔕 꺼져 있음' : '🔔 켜져 있음'}<br><small>무시하면 30분마다 최대 ${MAX_NAG}번 조르고, 밤 12시~아침 7시는 조용히 해요</small></div></div>
     <button class="big-btn ghost" data-act="test">테스트 알림 보내기</button>
     ${state.dead || perm !== 'granted' ? '<button class="big-btn" data-act="resub">알림 다시 켜기</button>' : ''}
@@ -271,6 +272,7 @@ function renderInstall() {
       <li>홈 화면에 생긴 <b>잔소리룸메</b> 아이콘으로 열어</li>
     </ol>
     <p class="help" style="margin-top:14px">iOS 16.4 이상, Safari에서 열어야 해요</p>
+    <button class="big-btn ghost" data-act="guide">어떻게 쓰는 앱이야?</button>
     <button class="big-btn ghost" data-act="restore">복구 코드가 있어요</button></div>`;
 }
 function renderIntro() {
@@ -280,6 +282,7 @@ function renderIntro() {
     <div class="preview">${DEFAULT_TASKS.map((t) => `<div>${t.emoji} ${t.name}<small>${t.time}</small></div>`).join('')}</div>
     <p class="help">기본 세트로 시작해. 시간이랑 할 일은 설정에서 바꿀 수 있어.</p>
     <button class="big-btn" data-act="start">알림 허용하고 시작하기</button>
+    <button class="big-btn ghost" data-act="guide">어떻게 쓰는 건데?</button>
     <button class="big-btn ghost" data-act="restore">복구 코드가 있어요</button></div>`;
 }
 
@@ -319,6 +322,7 @@ async function load() {
     toast(e.message);
   }
   render();
+  if (acct && state && !store.get('guided') && !document.getElementById('guide')) openGuide();
 }
 
 // ---------- 이벤트 ----------
@@ -390,6 +394,7 @@ $app.addEventListener('click', async (e) => {
   const id = b.dataset.id;
   if (a === 'done' || a === 'snooze' || a === 'undo') return act(id, a);
   if (a === 'pass') { passOpen = id; return render(); }
+  if (a === 'guide') return openGuide();
 
   if (a === 'start') {
     b.disabled = true;
@@ -399,6 +404,7 @@ $app.addEventListener('click', async (e) => {
       store.set('acct', acct);
       toast('시작! 이제 도망 못 가');
       await load();
+      if (!document.getElementById('guide')) openGuide();
     } catch (err) { toast(err.message); b.disabled = false; }
   }
   if (a === 'resub') {
