@@ -3,8 +3,8 @@
 //        log:{uid}:{date} = 내 응답(했음·미룸·패스) / nag:{uid}:{date} = 봇이 조른 기록
 import { sendPush } from './push.js';
 
-const GAP = 30 * 60e3;      // 재알림 간격
-const MAX_NAG = 4;          // 무시할 때 최대 조르는 횟수
+const GAP = 9 * 60e3;       // 재알림 간격 10분 (cron이 몇 초씩 밀려도 다음 회차에 걸리도록 1분 여유)
+const MAX_NAG = 6;          // 첫 알림 + 재알림 최대 5번
 const FIRST_WINDOW = 60;    // 예정 시각 후 몇 분 안에만 첫 알림 (앱 늦게 켰을 때 아침 알림 폭탄 방지)
 const QUIET_UNTIL = 7 * 60; // 00:00~07:00 조용히
 const LOG_TTL = 120 * 86400;
@@ -26,9 +26,11 @@ function nagText(task, n, kind) {
   return [
     `${task.tiny}. 딱 이것만 하자`,
     `아직이지? ${task.tiny}. 2분이면 끝나`,
+    `10분 지났다. 지금 일어나면 아직 늦은 거 아냐`,
     `방 꼴 좀 봐. 안 할 거면 패스 이유라도 적어 😑`,
-    `마지막으로 말한다. 계속 무시하면 나 진짜 짐 싼다 🧳`,
-  ][Math.min(n, 3)];
+    `또 무시? 나 슬슬 짐 싸는 중이다 🧳`,
+    `마지막으로 말한다. 계속 무시하면 나 진짜 나간다 🚪`,
+  ][Math.min(n, 5)];
 }
 
 // ---------- KV 헬퍼 ----------

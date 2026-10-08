@@ -1,7 +1,7 @@
 // 잔소리 룸메 — 프론트 (바닐라 JS, 빌드 없음)
 const API = window.JANSORI_API;
 const VAPID = window.JANSORI_VAPID;
-const MAX_NAG = 4;
+const MAX_NAG = 6; // 첫 알림 + 10분마다 재알림 5번 (worker와 맞출 것)
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const ALL = [0, 1, 2, 3, 4, 5, 6];
 const DEFAULT_TASKS = [
@@ -149,11 +149,14 @@ function renderToday() {
   const dead = state.dead || (typeof Notification !== 'undefined' && Notification.permission !== 'granted');
   const messList = Object.entries(room.mess).filter(([, v]) => v > 0);
   $app.innerHTML = `
-    <div class="room-card"><button class="room-help" data-act="guide" aria-label="사용법">?</button>${roomSVG(room)}
+    <div class="room-card mini">
+      <div class="mini-head"><b>룸메네 미니룸</b><span class="mini-cnt">TODAY <em>${list.filter((t) => state.log[t.id]?.st === 'done').length}</em> | TOTAL <em>${room.pts}</em></span>
+        <button class="mini-btn" data-act="layout-reset" aria-label="배치 초기화">↺</button><button class="mini-btn" data-act="guide" aria-label="사용법">?</button></div>
+      <div class="room-stage">${roomSVG(room)}</div>
       <div class="moodbar"><span>룸메 기분 <b>${room.moodName}</b></span><div class="bar"><i style="width:${room.mood}%;background:${room.mood >= 60 ? 'var(--ok)' : room.mood >= 40 ? 'var(--pass)' : 'var(--bad)'}"></i></div><span>${room.mood}</span></div>
     </div>
     <div class="bubble up">${esc(h.msg)}<small>${esc(h.sub)}</small></div>
-    <div class="roominfo">${messList.length ? `🧹 어질러진 곳 ${messList.length}군데 (그림을 눌러봐)` : '✨ 방이 깨끗해'} · ${room.next ? `다음 ${room.next.emoji} ${room.next.name}까지 ${room.next.pts - room.pts}개` : '아이템 전부 모음 🏆'}</div>
+    <div class="roominfo">${messList.length ? `🧹 어질러진 곳 ${messList.length}군데` : '✨ 방이 깨끗해'} · 물건은 끌어서 옮기고, 룸메는 톡·꾹 눌러봐 · ${room.next ? `다음 ${room.next.emoji} ${room.next.name}까지 ${room.next.pts - room.pts}개` : '아이템 전부 모음 🏆'}</div>
     ${dead ? '<button class="big-btn" data-act="resub" style="margin:0 0 14px">🔕 알림이 꺼져 있어. 다시 켜기</button>' : ''}
     ${list.map(taskCard).join('') || '<div class="empty">오늘 예정된 일이 없어요</div>'}`;
   const pending = list.filter((t) => ['due', 'ignored'].includes(statusOf(t).k)).length;
@@ -242,7 +245,7 @@ function renderSettings() {
   $app.innerHTML = `
     <button class="big-btn ghost" data-act="guide" style="margin-top:8px">📖 사용법 다시 보기</button>
     <h2>알림</h2>
-    <div class="list"><div>${state.dead || perm !== 'granted' ? '🔕 꺼져 있음' : '🔔 켜져 있음'}<br><small>무시하면 30분마다 최대 ${MAX_NAG}번 조르고, 밤 12시~아침 7시는 조용히 해요</small></div></div>
+    <div class="list"><div>${state.dead || perm !== 'granted' ? '🔕 꺼져 있음' : '🔔 켜져 있음'}<br><small>무시하면 10분마다 최대 ${MAX_NAG - 1}번 다시 조르고, 밤 12시~아침 7시는 조용히 해요</small></div></div>
     <button class="big-btn ghost" data-act="test">테스트 알림 보내기</button>
     ${state.dead || perm !== 'granted' ? '<button class="big-btn" data-act="resub">알림 다시 켜기</button>' : ''}
     <h2>할 일 (${editTasks.length})</h2>
@@ -278,7 +281,7 @@ function renderInstall() {
 function renderIntro() {
   $app.innerHTML = `<div class="intro">${mascot('happy')}
     <h1>안녕, 난 너의 잔소리 룸메</h1>
-    <p>정해진 시간에 내가 먼저 말 걸게.<br>안 하면 30분마다 계속 조를 거야.</p>
+    <p>정해진 시간에 내가 먼저 말 걸게.<br>안 하면 10분마다 계속 조를 거야.</p>
     <div class="preview">${DEFAULT_TASKS.map((t) => `<div>${t.emoji} ${t.name}<small>${t.time}</small></div>`).join('')}</div>
     <p class="help">기본 세트로 시작해. 시간이랑 할 일은 설정에서 바꿀 수 있어.</p>
     <button class="big-btn" data-act="start">알림 허용하고 시작하기</button>
@@ -352,6 +355,142 @@ for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) {
 }
 $app.addEventListener('contextmenu', (e) => { if (e.target.closest('button[data-hold]')) e.preventDefault(); });
 
+// ---------- 미니룸: 끌어서 배치 · 룸메 상호작용 ----------
+let drag = null, eatClick = false, sayT = null;
+const pokes = [];
+const FACE_FX = { happy: '💕', chill: '✨', meh: '💧', angry: '💢' };
+function svgPt(svg, e) {
+  const p = svg.createSVGPoint();
+  p.x = e.clientX; p.y = e.clientY;
+  return p.matrixTransform(svg.getScreenCTM().inverse());
+}
+function refreshRoom() {
+  const svg = $app.querySelector('.room-stage svg.room');
+  if (svg && state) svg.outerHTML = roomSVG(computeRoom(state));
+}
+const roomieEl = () => $app.querySelector('.room-stage [data-obj=roomie]');
+const roomIds = () => [...$app.querySelectorAll('.room-stage [data-obj]')].map((x) => x.dataset.obj);
+// 방 위 말풍선 (el 머리 위에 띄움)
+function bubble(text, el) {
+  const stage = el?.closest('.room-stage');
+  if (!stage) return;
+  stage.querySelector('.room-say')?.remove();
+  const sr = stage.getBoundingClientRect(), r = el.getBoundingClientRect();
+  const d = document.createElement('div');
+  d.className = 'room-say';
+  d.textContent = text;
+  const x = r.left + r.width / 2 - sr.left;
+  const cx = Math.min(sr.width - 80, Math.max(80, x));
+  d.style.left = cx + 'px';
+  d.style.top = Math.max(50, r.top - sr.top - 2) + 'px';
+  d.style.setProperty('--tail', `${Math.max(-60, Math.min(60, x - cx))}px`);
+  stage.appendChild(d);
+  clearTimeout(sayT);
+  sayT = setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 300); }, 3200);
+}
+function burst(el, emoji, n = 3) {
+  const stage = el?.closest('.room-stage');
+  if (!stage || !emoji) return;
+  const sr = stage.getBoundingClientRect(), r = el.getBoundingClientRect();
+  for (let i = 0; i < n; i++) {
+    const f = document.createElement('span');
+    f.className = 'room-fx';
+    f.textContent = emoji;
+    f.style.left = r.left + r.width / 2 - sr.left + (Math.random() * 36 - 18) + 'px';
+    f.style.top = r.top - sr.top + 10 + 'px';
+    f.style.animationDelay = i * 0.12 + 's';
+    f.addEventListener('animationend', () => f.remove());
+    stage.appendChild(f);
+  }
+}
+function play(g, anim) {
+  const el = g?.querySelector('.rm');
+  if (!el) return;
+  el.classList.remove('hop', 'shake', 'squish', 'held');
+  el.getBoundingClientRect();
+  el.classList.add(anim);
+  if (anim !== 'held') el.addEventListener('animationend', () => el.classList.remove(anim), { once: true });
+}
+function roomieReact(kind, g = roomieEl()) {
+  if (!g) return;
+  const r = computeRoom(state);
+  if (r.gone) return bubble('(쪽지) 친구네 간다. 방 치우면 돌아올게', g);
+  let line, fx, anim = 'hop';
+  if (kind === 'tap') {
+    const now = Date.now();
+    pokes.push(now);
+    while (now - pokes[0] > 2500) pokes.shift();
+    if (pokes.length >= 4) { line = pick(LINES.poke); fx = '💢'; anim = 'shake'; }
+    else { line = pick(LINES.tap[r.face]); fx = FACE_FX[r.face]; if (r.face === 'angry') anim = 'shake'; }
+  } else if (kind === 'pet') {
+    const good = r.mood >= 60;
+    line = pick(LINES.pet[good ? 'good' : 'bad']); fx = good ? '💕' : '💧'; anim = 'squish';
+    navigator.vibrate?.(15);
+  } else {
+    const near = nearestObj('roomie', roomIds());
+    line = near && DROP[near] ? DROP[near](r) : pick(['여기 좋다', '오 시야 좋은데?', '자리 이동 완료!']);
+    fx = near === 'bed' ? '💤' : '✨';
+  }
+  play(g, anim);
+  burst(g, fx, kind === 'pet' ? 5 : 3);
+  bubble(line, g);
+}
+// 물건을 톡: 룸메가 한마디 (고양이는 직접)
+function tapObj(id, g, target) {
+  if (id === 'roomie') return roomieReact('tap', g);
+  const self = target.closest('[data-say]');
+  const lines = OBJ_LINES[self ? self.dataset.say : id];
+  if (!lines) return;
+  const line = typeof lines === 'function' ? lines() : pick(lines);
+  const rm = roomieEl();
+  if (self || !rm || computeRoom(state).gone) { bubble(line, self || g); return burst(self || g, self ? '🐾' : '', 2); }
+  play(rm, 'hop');
+  bubble(line, rm);
+}
+
+$app.addEventListener('pointerdown', (e) => {
+  const g = e.target.closest('.room-stage svg.room [data-obj]');
+  if (!g || e.button > 0) return;
+  const svg = g.ownerSVGElement, id = g.dataset.obj;
+  drag = { g, svg, id, p0: svgPt(svg, e), pos: objPos(id), cur: null, moved: false, pid: e.pointerId, target: e.target };
+  if (id === 'roomie') drag.petT = setTimeout(() => { if (drag && !drag.moved) { drag.petted = true; roomieReact('pet', g); } }, 550);
+});
+window.addEventListener('pointermove', (e) => {
+  if (!drag || e.pointerId !== drag.pid) return;
+  const p = svgPt(drag.svg, e);
+  const dx = p.x - drag.p0.x, dy = p.y - drag.p0.y;
+  if (!drag.moved) {
+    if (Math.hypot(dx, dy) < 5 || drag.petted) return;
+    drag.moved = true;
+    clearTimeout(drag.petT);
+    drag.g.classList.add('dragging');
+    drag.g.parentNode.appendChild(drag.g);
+    if (drag.id === 'roomie' && !computeRoom(state).gone) { play(drag.g, 'held'); bubble(pick(LINES.grab), drag.g); }
+    else $app.querySelector('.room-say')?.remove();
+  }
+  drag.cur = clampPos(objDef(drag.id), [drag.pos[0] + dx, drag.pos[1] + dy]);
+  drag.g.setAttribute('transform', objTransform(drag.id, drag.cur));
+});
+function endDrag(e) {
+  if (!drag || e.pointerId !== drag.pid) return;
+  const d = drag;
+  drag = null;
+  clearTimeout(d.petT);
+  if (d.moved) {
+    eatClick = true;
+    setTimeout(() => { eatClick = false; }, 400);
+    if (d.cur) saveLayout(d.id, d.cur);
+    refreshRoom();
+    if (d.id === 'roomie') roomieReact('drop');
+    else if (Math.random() < 0.35) { const rm = roomieEl(); if (rm && !computeRoom(state).gone) { play(rm, 'hop'); bubble(pick(LINES.move), rm); } }
+  } else if (!d.petted && e.type === 'pointerup' && !d.target.closest('[data-mess]')) tapObj(d.id, d.g, d.target);
+}
+window.addEventListener('pointerup', endDrag);
+window.addEventListener('pointercancel', endDrag);
+// 물건을 잡고 있는 동안엔 화면이 같이 스크롤되지 않게 (iOS)
+$app.addEventListener('touchmove', (e) => { if (drag) e.preventDefault(); }, { passive: false });
+$app.addEventListener('contextmenu', (e) => { if (e.target.closest('svg.room')) e.preventDefault(); });
+
 $app.addEventListener('submit', (e) => {
   e.preventDefault();
   const f = e.target.closest('[data-pass]');
@@ -367,16 +506,13 @@ $app.addEventListener('input', (e) => {
 });
 
 $app.addEventListener('click', async (e) => {
-  const g = e.target.closest('[data-roomie],[data-mess]');
+  if (eatClick) { eatClick = false; return; }
+  const g = e.target.closest('svg.room [data-mess]');
   if (g && state) {
-    const room = computeRoom(state);
-    if (g.dataset.roomie) say = room.gone ? { msg: '(쪽지) 친구네 간다. 방 치우면 돌아올게', sub: '할 일을 하면 기분이 올라가요', until: Date.now() + 6000 } : { msg: pick(LINES.tap[room.face]), sub: `기분 ${room.mood}/100`, until: Date.now() + 5000 };
-    else {
-      const k = g.dataset.mess;
-      const t = state.tasks.find((x) => kindOf(x) === k);
-      say = { msg: `저 ${MESS_LABEL[k]} 보여?`, sub: t ? `${t.name} 하면 치워져` : '', until: Date.now() + 5000 };
-      if (t) focusTask = t.id;
-    }
+    const k = g.dataset.mess;
+    const t = state.tasks.find((x) => kindOf(x) === k);
+    say = { msg: `저 ${MESS_LABEL[k]} 보여?`, sub: t ? `${t.name} 하면 치워져. 끌어서 숨겨도 소용없어` : '', until: Date.now() + 5000 };
+    if (t) focusTask = t.id;
     return render();
   }
   const b = e.target.closest('button');
@@ -395,6 +531,7 @@ $app.addEventListener('click', async (e) => {
   if (a === 'done' || a === 'snooze' || a === 'undo') return act(id, a);
   if (a === 'pass') { passOpen = id; return render(); }
   if (a === 'guide') return openGuide();
+  if (a === 'layout-reset') { resetLayout(); refreshRoom(); return toast('가구 배치를 처음대로 돌렸어'); }
 
   if (a === 'start') {
     b.disabled = true;
@@ -450,7 +587,7 @@ $app.addEventListener('click', async (e) => {
 });
 
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && acct) { report = null; load(); } });
-setInterval(() => { if (document.visibilityState === 'visible' && state && tab === 'today' && !passOpen) render(); }, 60e3);
+setInterval(() => { if (document.visibilityState === 'visible' && state && tab === 'today' && !passOpen && !drag) render(); }, 60e3);
 navigator.serviceWorker?.addEventListener('message', (e) => {
   if (e.data?.task) { focusTask = e.data.task; tab = 'today'; }
   if (e.data?.tab) tab = e.data.tab;

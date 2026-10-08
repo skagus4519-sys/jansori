@@ -12,7 +12,7 @@ function guideSlides() {
       art: `<div class="g-mascot">${mascot('happy')}</div>`,
       title: '난 너의 잔소리 룸메야',
       body: `<p>정해 둔 시간이 되면 <b>내가 먼저 알림</b>으로 말 걸게.</p>
-        <ul><li>무시하면 <b>30분마다 최대 4번</b> 다시 조른다</li>
+        <ul><li>무시하면 <b>10분마다 최대 5번</b> 다시 조른다</li>
         <li>밤 12시 ~ 아침 7시엔 조용히 있을게</li>
         <li>알림은 "딱 2분짜리" 첫 단계만 말해줘. 시작만 하면 돼</li></ul>`,
     },

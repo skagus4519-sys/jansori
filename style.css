@@ -201,7 +201,6 @@ svg.room .wiggle { transform-box: fill-box; transform-origin: 50% 90%; }
 
 /* 사용법 */
 .room-card { position: relative; }
-.room-help { position: absolute; top: 10px; right: 10px; z-index: 1; width: 30px; height: 30px; border-radius: 50%; background: rgba(255, 255, 255, .85); color: #2b211b; font-weight: 800; font-size: 15px; box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
 #guide { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: flex; flex-direction: column; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
 .g-top { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px 4px; max-width: 520px; width: 100%; margin: 0 auto; }
 .g-count { font-size: 13px; color: var(--sub); font-weight: 600; }
@@ -235,6 +234,36 @@ svg.room .wiggle { transform-box: fill-box; transform-origin: 50% 90%; }
 .g-dots i.on { width: 20px; background: var(--accent); }
 .g-bottom .big-btn { margin-top: 12px; }
 .g-art svg.room { max-height: 30vh; width: auto; max-width: 100%; margin: 0 auto; }
-.g-art:has(svg.room) { background: #fbe6cf; }
+.g-art:has(svg.room) { background: #dceefa; }
 .g-map { grid-template-columns: 1fr; font-size: 14px; }
 .g-slide h2 { margin-top: 16px; }
+
+/* 미니룸 (싸이월드 미니홈피 느낌) */
+.room-card.mini { padding: 7px 7px 0; border-color: #bcd2e3; }
+.mini-head { display: flex; align-items: center; gap: 6px; padding: 2px 4px 7px; }
+.mini-head b { flex: 1; color: #3a7fc1; font-size: 13px; font-weight: 800; letter-spacing: -.2px; }
+.mini-head b::before { content: "▶ "; font-size: 9px; vertical-align: 1px; }
+.mini-cnt { font-size: 10.5px; color: #9a9a9a; letter-spacing: .3px; white-space: nowrap; }
+.mini-cnt em { color: #ff5a36; font-style: normal; font-weight: 800; }
+.mini-btn { width: 24px; height: 24px; flex: none; border-radius: 50%; border: 1px solid #c9d9e6; background: #f4f9fd; color: #3a7fc1; font-weight: 800; font-size: 12px; line-height: 1; padding: 0; }
+.room-stage { position: relative; border: 1px dashed #a9c4d8; border-radius: 12px; overflow: hidden; }
+.room-card.mini .moodbar { border-top: 0; padding: 9px 7px 10px; }
+svg.room { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+svg.room [data-obj] { cursor: grab; touch-action: none; }
+svg.room .dragging { cursor: grabbing; filter: drop-shadow(0 7px 4px rgba(40, 30, 20, .28)); }
+.g-art svg.room [data-obj] { touch-action: auto; }
+.rm { transform-box: fill-box; transform-origin: 50% 100%; }
+.rm.hop { animation: hop .5s ease-out; }
+@keyframes hop { 30% { transform: translateY(-14px) scale(.95, 1.05); } 60% { transform: translateY(0) scale(1.08, .92); } }
+.rm.shake { animation: shake .5s; }
+@keyframes shake { 20% { transform: translateX(-4px) rotate(-6deg); } 40% { transform: translateX(4px) rotate(6deg); } 60% { transform: translateX(-3px) rotate(-4deg); } 80% { transform: translateX(2px); } }
+.rm.squish { animation: squish .7s; }
+@keyframes squish { 30% { transform: scale(1.12, .86); } 60% { transform: scale(.94, 1.06); } }
+.rm.held { transform-origin: 50% 0; animation: held .6s ease-in-out infinite; }
+@keyframes held { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+.room-say { position: absolute; z-index: 2; width: max-content; max-width: 170px; margin-top: -8px; transform: translate(-50%, -100%); background: #fff; color: #2b211b; border: 1.5px solid #6b4a36; border-radius: 12px; padding: 6px 10px; font-size: 13px; font-weight: 600; line-height: 1.35; text-align: center; pointer-events: none; animation: sayin .18s ease-out; transition: opacity .3s; }
+.room-say::after { content: ""; position: absolute; left: calc(50% + var(--tail, 0px)); bottom: -6px; width: 9px; height: 9px; margin-left: -5px; background: #fff; border-right: 1.5px solid #6b4a36; border-bottom: 1.5px solid #6b4a36; transform: rotate(45deg); }
+.room-say.out { opacity: 0; }
+@keyframes sayin { from { opacity: 0; transform: translate(-50%, -85%) scale(.9); } }
+.room-fx { position: absolute; z-index: 2; font-size: 16px; pointer-events: none; animation: fx 1.1s ease-out both; }
+@keyframes fx { 0% { opacity: 0; transform: translate(-50%, 0) scale(.6); } 20% { opacity: 1; transform: translate(-50%, -8px) scale(1); } 100% { opacity: 0; transform: translate(-50%, -52px); } }
